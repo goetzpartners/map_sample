@@ -1,0 +1,156 @@
+<style>
+.subunit-label {
+  fill: #EEE;
+  fill-opacity: .5;
+  font-size: 20px;
+  font-weight: 300;
+  text-anchor: middle;
+}
+.place {
+  fill: #333;
+}
+text {
+  font-family: "Helvetica Neue", Helvetica, Arial, sans-serif;
+  font-size: 10px;
+  pointer-events: none;
+}
+
+#map {
+  border: 1px solid #EEE;
+}
+</style>
+<body>
+<script src="sourceFiles/d3.v3.min.js"></script>
+<script src="http://d3js.org/d3.geo.projection.v0.min.js"></script>
+<script src="sites.js"></script>
+<script src="sourceFiles/underscore.js" type="text/javascript"></script>
+<script src="sourceFiles/topojson.v1.min.js"></script>
+
+<center>
+  <div id="map">
+  </div>
+</center>
+
+<script>
+
+var result = sites
+
+  var result = _.sortBy(result,function(site){
+    return -site.Size;
+  });
+
+ var ranges =  result.map(function(key) {return parseInt(key.Size);})
+ console.log(d3.min(ranges) + " - " + d3.max(ranges))
+
+// var sites_filtered_sorted = _.sortBy(sites_filtered,function(site){
+//   return -site.Total_SqM_BUILDINGS;
+// });
+
+  var width = 800;
+  var height = 600;
+
+  var svg = d3.select("#map").append("svg")
+  .attr("width", width)
+  .attr("height", height)
+  .attr("class", "panel");
+
+  // var tooltipper = d3.select("#map").append("div")
+  //     .attr("class", "tooltipper");
+
+  d3.json("maps/world-110m.topojson", function(error, data) {
+    if (error) return console.error(error);
+
+    var subunits = topojson.feature(data, data.objects.countries);
+
+    var scale = 1;
+    var offset = [0,0];
+
+
+    var projection = d3.geo.patterson() //patterson
+        .scale(scale)
+        .translate(offset)
+        .precision(.1);
+
+        //.scale(153)
+        //.translate([width / 2, height / 2]);
+        //.precision(.1);
+    //var projection = d3.geo.mercator().scale(scale).translate(offset)
+
+    // Create a path generator.
+    var path = d3.geo.path()
+    .projection(projection);
+
+
+    // using the path determin the bounds of the current map and use
+    // these to determine better values for the sclae and translation
+    var b = path.bounds(subunits),
+    s = 0.95 / Math.max((b[1][0] - b[0][0]) / width, (b[1][1] - b[0][1]) / height),
+    t = [(width - s * (b[1][0] + b[0][0])) / 2, (height - s * (b[1][1] + b[0][1])) / 2];
+
+    //new projection
+    projection
+    .scale(s)
+    .translate(t);
+
+    var path = d3.geo.path()
+    .projection(projection);
+
+    var size = d3.scale.linear()
+    .domain([d3.min(ranges),d3.max(ranges)])
+    .range([50 ,50])
+    .clamp(true);
+
+    var shape = d3.scale.ordinal()
+    .domain(["Distributor", "Subsidiary", "Dealer"])
+    //.range(["circle","square","diamond"]);
+    .range(["circle","triangle-up","square"]);
+
+
+    var color = d3.scale.ordinal()
+    .domain(["DiGiCo","Allen&Heath","Calrec"])
+    .range(["#006587", "#C61A2C", "#5F5F5F"]);
+
+    //lightblue "#5496B8"
+
+    // var bounds = d3.geo.bounds(subunits);
+    // var centerX = d3.sum(bounds, function(d) {return d[0];}) / 2;
+    // var centerY = d3.sum(bounds, function(d) {return d[1];}) / 2;
+    //
+    // projection.center([centerX,centerY]);
+
+  svg.selectAll(".subunit")
+  .data(subunits.features)
+  .enter().append("path")
+  .attr("class", function(d) {return "subunit " + d.id;})
+  .attr("stroke", "#999")
+  .attr("fill", "#EEE")
+  //.attr("fill", "#D0E1EC")
+  .attr("d",path);
+
+
+  var self = this;
+  self.node = self.find("svg");
+
+    var updatePlaces = function(group) {
+      group.attr("id", function(site) { return site._id + ""})
+      .style("stroke", "#FFF")
+      .style("stroke-width", 0.5)
+      .style("opacity", 0.8)
+      .style("fill", function(site) { return color(site.Color)} )
+      .attr("d", d3.svg.symbol().type(function(site){return shape(site.Shape)}).size(function(site){return size(site.Size) }))
+      .attr("transform", function(site) {return "translate(" + projection([site.LNG,site.LAT]) + ")"; })
+      .attr("class", "circle")
+      .attr("zIndex",function(site) {return 9999 - site.Size});
+    }
+
+      var places = svg.selectAll(".circle")
+      .data(result, function (site) {   {return site._id;} })
+
+      updatePlaces(places.enter().append("path"));
+      updatePlaces(places.transition().duration(250).ease("cubic-out"));
+      places.exit().transition().duration(250).attr("r", 0).remove();
+
+  })
+
+</script>
+</body>
